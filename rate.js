@@ -2,39 +2,6 @@ import ccxt from "ccxt"
 import config from "./config.js"
 import { computeCustomPrice, fetchMultipleExchange, fetchTickerPrice, getSyntheticRate } from "./lib/ticker.js"
 
-const CACHE_TTL = 30000
-
-const multiCache = new Map()
-const tickerCache = new Map()
-
-async function getCachedMultiExchange(ids, symbol) {
-    const key = `fetchMultipleExchange:${ids.join(',')}:${symbol}`;
-    const now = Date.now();
-    if (multiCache.has(key)) {
-        const { timestamp, value } = multiCache.get(key);
-        if (now - timestamp < CACHE_TTL) {
-            return value;
-        }
-    }
-    const value = await fetchMultipleExchange(ids, symbol);
-    multiCache.set(key, { timestamp: now, value });
-    return value;
-}
-
-async function getCachedTicker(id, symbol) {
-    const key = `fetchTicker:${id}:${symbol}`;
-    const now = Date.now();
-    if (tickerCache.has(key)) {
-        const { timestamp, value } = tickerCache.get(key);
-        if (now - timestamp < CACHE_TTL) {
-            return value;
-        }
-    }
-    const value = await fetchTickerPrice(id, symbol);
-    tickerCache.set(key, { timestamp: now, value });
-    return value;
-}
-
 function RateConstructor(pair, extended, cfg) {
     this.syntheticPair = pair;
     const [base, quote] = pair.split("/");
@@ -52,10 +19,9 @@ function RateConstructor(pair, extended, cfg) {
 Object.assign(RateConstructor.prototype, {
     async init() {
         const [rates, ticker] = await Promise.all([
-            getCachedMultiExchange(this.cfg.exchanges, this.baseSymbol),
-            getCachedTicker(this.cfg.exchanges[0], this.quoteSymbol)
-        ])
-
+            fetchMultipleExchange(this.cfg.exchanges, this.baseSymbol),
+            fetchTickerPrice(this.cfg.exchanges[0], this.quoteSymbol)
+        ])  
         this.rates = rates
         this.baseRate = computeCustomPrice(rates)
         this.quoteRate = ticker
