@@ -1,3 +1,3 @@
 export default {
-    exchanges: ["binance", "okx", "gate", "kraken"],
+    exchanges: ["binance", "okx", "bybit", "gate", "kraken"],
 }

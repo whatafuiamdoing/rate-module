@@ -1,54 +1,38 @@
 import ccxt from "ccxt"
 import config from "./config.js"
-import { computeCustomPrice, fetchMultipleExchange, fetchTickerPrice, getSyntheticRate } from "./lib/ticker.js"
+import { computeCustomPrice, fetchMultipleExchange, getSyntheticRate } from "./lib/ticker.js"
 
-function RateConstructor(pair, extended, cfg) {
-    this.syntheticPair = pair;
-    const [base, quote] = pair.split("/");
-    this.baseSymbol = `${base}/USDT`;
-    this.quoteSymbol = `${quote}/USDT`;
-    this.extended = extended;
-    this.cfg = cfg;
-
-    this.rates = null;
-    this.baseRate = null;
-    this.quoteRate = null;
-    this.syntheticRate = null;
+function ExchangeConstructor(symbol, cfg) {
+    this.symbol = symbol
+    this.rates = null
+    this.cfg = cfg
 }
 
-Object.assign(RateConstructor.prototype, {
+function RateConstructor(pair, base, quote) {
+    this.syntheticPair = pair
+    this.baseRate = computeCustomPrice(base)
+    this.quoteRate = computeCustomPrice(quote)
+    this.syntheticRate = this.getSyntheticRate()
+}
+
+Object.assign(ExchangeConstructor.prototype, {
     async init() {
-        const [rates, ticker] = await Promise.all([
-            fetchMultipleExchange(this.cfg.exchanges, this.baseSymbol),
-            fetchTickerPrice(this.cfg.exchanges[0], this.quoteSymbol)
-        ])  
-        this.rates = rates
-        this.baseRate = computeCustomPrice(rates)
-        this.quoteRate = ticker
-        this.syntheticRate = getSyntheticRate.call(this)
-
-        if (!this.extended) {
-            Object.defineProperty(this, "rates", {
-                enumerable: false,
-                configurable: false,
-                writable: false,
-                value: this.rates
-            })
-        }
-
+        this.rates = await fetchMultipleExchange(this.cfg.exchanges, this.symbol)
         return this
     }
 })
 
-Object.defineProperty(RateConstructor, "create", {
-    value: async function (pair, extended = false, cfg = config) {
-        const instance = Object.create(RateConstructor.prototype)
-        RateConstructor.call(instance, pair, extended, cfg)
+Object.assign(RateConstructor.prototype, { getSyntheticRate })
+
+Object.defineProperty(ExchangeConstructor, "create", {
+    value: async function (symbol, cfg = config) {
+        const instance = Object.create(ExchangeConstructor.prototype)
+        ExchangeConstructor.call(instance, symbol, cfg)
         await instance.init()
 
         return new Proxy(instance, {
             get(target, prop, receiver) {
-                if (prop === "rates" && !target.extended) return undefined
+                // if (prop === "rates" && !target.extended) return undefined
                 return Reflect.get(target, prop, receiver)
             },
             ownKeys(target) {
@@ -65,9 +49,35 @@ Object.defineProperty(RateConstructor, "create", {
     configurable: false
 })
 
+Object.defineProperty(RateConstructor, "create", {
+    value: function (pair, base, quote) {
+        const instance = Object.create(RateConstructor.prototype)
+        RateConstructor.call(instance, pair, base, quote)
+
+        return new Proxy(instance, {
+            get(target, prop, receiver) {
+                return Reflect.get(target, prop, receiver)
+            }
+        })
+    },
+    writable: false, 
+    enumerable: true,
+    configurable: false
+})
+
+const ExchangeModule = Object.create(null)
 const RateModule = Object.create(null)
+Object.defineProperties(ExchangeModule, {
+    Exchange: {
+        value: ExchangeConstructor.create,
+        writable: false,
+        enumerable: true,
+        configurable: false
+    }
+})
+
 Object.defineProperties(RateModule, {
-    Rate: {
+    Rate :{
         value: RateConstructor.create,
         writable: false,
         enumerable: true,
@@ -75,6 +85,26 @@ Object.defineProperties(RateModule, {
     }
 })
 
+Object.freeze(ExchangeModule)
 Object.freeze(RateModule)
 
-export default RateModule.Rate
+const ONIGIRI = Object.create(null)
+
+Object.defineProperties(ONIGIRI, {
+    Rate: {
+        value: RateModule.Rate,
+        writable: false,
+        enumerable: true,
+        configurable: false
+    },
+    Exchange: {
+        value: ExchangeModule.Exchange,
+        writable: false,
+        enumerable: true,
+        configurable: false
+    }
+})
+
+Object.freeze(ONIGIRI)
+
+export default ONIGIRI
