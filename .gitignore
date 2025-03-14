@@ -149,5 +149,6 @@ index.js
 exchange.js
 .lib/ai.js
 .lib/exchange.js
+dev/
 
 # End of https://www.toptal.com/developers/gitignore/api/node
