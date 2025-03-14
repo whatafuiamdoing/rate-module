@@ -141,4 +141,13 @@ dist
 # SvelteKit build / generate output
 .svelte-kit
 
+# Dev directory
+scripts/
+
+# Dev files
+index.js
+exchange.js
+.lib/ai.js
+.lib/exchange.js
+
 # End of https://www.toptal.com/developers/gitignore/api/node
